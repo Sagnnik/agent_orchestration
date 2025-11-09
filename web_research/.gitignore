@@ -1,3 +1,9 @@
 .env
 redis_data/
 .venv
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
