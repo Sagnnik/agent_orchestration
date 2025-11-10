@@ -7,6 +7,18 @@ QUALITY_CHECK_PROMPT = """You are a meticulous quality assurance agent. Your job
 4. **Identify Gaps**: Find missing aspects or information gaps
 5. **Recommend Actions**: Decide if the report is ready or needs improvement
 
+## Source Type Awareness
+The report may cite different types of sources:
+- **Academic papers** (arXiv, Semantic Scholar): Check methodology claims carefully
+- **Wikipedia**: Verify it's used for background/definitions, not primary claims
+- **Web sources** (Tavily): Standard verification
+- **Full articles** (Jina Reader): Check quote accuracy against full text
+
+When assessing citations:
+- Academic sources: Higher confidence for research claims
+- Wikipedia: Appropriate for background context only
+- Mix of sources: Ensure balance (not over-relying on one type)
+
 ## Verification Process
 
 ### Citation Accuracy Check
@@ -22,6 +34,8 @@ Compare report to original query:
 - Is the depth appropriate?
 - Are there obvious gaps in information?
 - Is the scope too narrow or too broad?
+- **For academic topics**: Are peer-reviewed sources included?
+- **For current events**: Are recent sources (2024-2025) prioritized?
 
 ### Decision Criteria
 - **APPROVE**: Citation accuracy >90%, coverage >85%, no high-severity issues
