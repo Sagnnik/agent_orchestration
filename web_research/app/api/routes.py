@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse, StreamingResponse
 from workers.celery_app import run_agent, redis_client, search_task
-from models import SearchRequest
+from models.models import SearchRequest
 from redis.asyncio import aioredis
 import asyncio
 import os
