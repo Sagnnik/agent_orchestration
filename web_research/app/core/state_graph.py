@@ -1,15 +1,15 @@
-from pydantic import BaseModel, Field
-from typing import Optional, List
-from models.llm_response_models import QueryPlanOutput, SearchQueryResult, SynthesisOutput, QualityCheckOutput, ResearchDepth
+from web_research.app.core.llm_response_models import QueryPlanOutput, SearchQueryResult, SynthesisOutput, QualityCheckOutput, ResearchDepth
+from typing import Annotated, TypedDict, Optional, List
+import operator
 
-class ResearchState(BaseModel):
-    original_query: str = Field(description="User's Original research query")
-    original_depth: ResearchDepth = Field(description="User declared research depth ( 'shallow' | 'moderate' | 'deep' )")
-    search_plan: Optional[QueryPlanOutput] = None
-    search_results: List[SearchQueryResult] = Field(default_factory=list)
-    synthesis: Optional[SynthesisOutput] = None
-    quality_check: Optional[QualityCheckOutput] = None
-    iteration_count: int = Field(default=0)
-    max_iteration: int = Field(default=3)
-    is_complete: bool = Field(default=False)
+class ResearchState(TypedDict):
+    original_query: str
+    depth: ResearchDepth
+    search_plan: Annotated[Optional[QueryPlanOutput], operator.add]
+    search_results: Annotated[List[SearchQueryResult], operator.add] 
+    synthesis: Annotated[Optional[SynthesisOutput], operator.add]
+    quality_check: Annotated[Optional[QualityCheckOutput], operator.add]  
+    iteration_count: int
+    max_iterations: int
+    is_complete: bool
     

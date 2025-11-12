@@ -1,6 +1,6 @@
 from fastapi import FastAPI
-from config import get_settings
-from logger import logger
+from web_research.app.utils.config import get_settings
+from web_research.app.utils.logger import logger
 
 
 app = FastAPI()
