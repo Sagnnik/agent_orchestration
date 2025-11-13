@@ -1,10 +1,12 @@
 import arxiv
 from typing import List, Dict, Any
 
-def arxiv_search(query: str, max_results: int = 5) -> List[Dict[str, Any]]:
+def arxiv_search(state: Dict[str, Any]) -> List[Dict[str, Any]]:
     """Search using ArXiv API"""
+    query = state.get("query", "")
+    max_results = state.get("max_results", 5)
+    
     try:
-        # Search for papers
         search = arxiv.Search(
             query=query,
             max_results=max_results,
@@ -13,13 +15,10 @@ def arxiv_search(query: str, max_results: int = 5) -> List[Dict[str, Any]]:
         
         results = []
         for paper in search.results():
-            # Get summary (abstract)
-            summary = paper.summary
-            
             results.append({
                 "title": paper.title,
                 "url": paper.entry_id,
-                "snippet": summary,
+                "snippet": paper.summary,
                 "source": "arxiv",
                 "metadata": {
                     "authors": [author.name for author in paper.authors],

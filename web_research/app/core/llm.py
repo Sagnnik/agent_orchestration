@@ -22,7 +22,7 @@ def get_llm(provider: str, model_name: str, api_key: str = None, temperature:int
         else:
             if not api_key:
                  print(f"API Key is missing for provider '{provider}'")
-            model = ModelClass(model=model_name, api_key=api_key)
+            model = ModelClass(model=model_name, api_key=api_key, reasoning=True)
         
         return model
     

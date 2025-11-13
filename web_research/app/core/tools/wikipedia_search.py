@@ -1,16 +1,17 @@
 import wikipedia
 from typing import List, Dict, Any
 
-def wikipedia_search(query: str, max_results: int = 3) -> List[Dict[str, Any]]:
+def wikipedia_search(state: Dict[str, Any]) -> List[Dict[str, Any]]:
     """Search using Wikipedia API"""
+    query = state.get("query", "")
+    max_results = state.get("max_results", 3)
+    
     try:
-        # Search for pages
         search_results = wikipedia.search(query, results=max_results)
         
         results = []
         for page_title in search_results:
             try:
-                # Get page summary
                 page = wikipedia.page(page_title, auto_suggest=False)
                 summary = wikipedia.summary(page_title, sentences=5, auto_suggest=False)
                 
@@ -22,7 +23,7 @@ def wikipedia_search(query: str, max_results: int = 3) -> List[Dict[str, Any]]:
                     "metadata": {
                         "pageid": page.pageid,
                         "revision_id": page.revision_id,
-                        "categories": page.categories[:5],  # Limit categories
+                        "categories": page.categories[:5],
                         "content_length": len(page.content)
                     }
                 })

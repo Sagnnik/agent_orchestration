@@ -1,3 +1,4 @@
+# llm_response_model.py
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict
 from datetime import datetime
@@ -27,26 +28,24 @@ class SourceType(str, Enum):
     WIKIPEDIA = "wikipedia"
     WEB = "web"
     ARXIV = "arxiv"
-    SEMANTIC_SCHOLAR = "semantic_scholar"
 
 class ResearchTool(str, Enum):
     WIKIPEDIA = "wikipedia"
     TAVILY = "tavily"
     ARXIV = "arxiv"
-    SEMANTIC_SCHOLAR = "semantic_scholar"
-    MARKDOWNER = "markdowner"
+    WEBSCRAPER = "webscraper"
 
 # Models for Query Planner Node
 class PlannedQuery(BaseModel):
     """A single query with assigned tools"""
     query: str = Field(description="The search query to execute")
-    tools: List[ResearchTool] = Field(description="List of tools to be used for this query")
+    tools: List[ResearchTool] = Field(description="List of tools to be used for this query (wikipedia | tavily | arxiv | webscraper)")
 
 class QueryPlanOutput(BaseModel):
     """Output from the Query Planner node"""
     queries: List[PlannedQuery] = Field(description="List of 2-4 search queries with assigned tools")
     rationals: str = Field(description="Brief 1-2 sentence explanation of the research strategy and tool choices")
-    assigned_depth: ResearchDepth = Field(description="User declared research depth")
+    #assigned_depth: ResearchDepth = Field(description="User declared research depth")
 
 # Models for search and Gather Node
 class SearchResult(BaseModel):
@@ -62,8 +61,8 @@ class SearchResult(BaseModel):
 class SearchQueryResult(BaseModel):
     """Results for a single search query"""
     query: str = Field(description="The search query that was executed")
-    tool: ResearchTool = Field(description="The tool that was executed for this query") 
-    source_type: SourceType = Field(description="Type of the sources returned")
+    tool: ResearchTool = Field(description="The tool that was executed for this query (wikipedia | tavily | arxiv | webscraper)") 
+    source_type: SourceType = Field(description="Type of the sources returned (wikipedia | arxiv | web)")
     timestamp: datetime = Field(default_factory=datetime.now)
     results: List[SearchResult] = Field(description="List of Search Results")
 
@@ -77,9 +76,9 @@ class Citations(BaseModel):
     id: int = Field(description="citation number/ID")
     claim: str = Field(description="The specific claim made in the report")
     source_url: str = Field(description="URL of the source")
-    source_type: SourceType = Field(description="Type of Source for quality assesment")
+    source_type: SourceType = Field(description="Type of Source for quality assesment (wikipedia | arxiv | web)")
     quote: str = Field(description="Exact or paraphrased text from the source supporting the claim")
-    confidence: ConfidenceLevel = Field(description="confidence level in this citation")
+    confidence: ConfidenceLevel = Field(description="confidence level in this citation (high | medium | low)")
 
 class SynthesisMetadata(BaseModel):
     """Metadata about the synthesized report"""
@@ -105,12 +104,12 @@ class CitationIssue(BaseModel):
     """Issue found with a specific citation"""
     citation_id: int = Field(description="ID of the problematic citation")
     problem: str = Field(description="Description of the problem")
-    severity: IssueSeverity = Field(description="Severity of the issue")
+    severity: IssueSeverity = Field(description="Severity of the issue (high | medium | low)")
 
 class AdditionalQuery(BaseModel):
     """Query with tools for research_more action"""
     query: str = Field(description="Search query to fill information gap")
-    tools: List[ResearchTool] = Field(description="Tools to use for this query")
+    tools: List[ResearchTool] = Field(description="Tools to use for this query (wikipedia | tavily | arxiv | webscraper)")
 
 class NextSteps(BaseModel):
     """Recommended next steps if quality check fails"""
@@ -123,6 +122,6 @@ class QualityCheckOutput(BaseModel):
     scores: QualityScores = Field(description="Quality assessment scores")
     citation_issues: List[CitationIssue] = Field(default_factory=list, description="List of citation problems found")
     coverage_gaps: List[str] = Field(default_factory=list, description="Aspects of the query not adequately covered")
-    action: QualityAction = Field(description="Recommended action to take")
+    action: QualityAction = Field(description="Recommended action to take (approve | revise | research_more)")
     next_steps: NextSteps = Field(description="Specific next steps if action is not 'approve'")
 

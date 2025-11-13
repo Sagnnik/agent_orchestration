@@ -1,30 +1,26 @@
 import requests
 from bs4 import BeautifulSoup
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 import re
-from urllib.parse import urljoin, urlparse
 import markdownify
-import os
-import tempfile
 
-def scrape_webpage(url: str) -> Dict[str, Any]:
-    """Scrape content from a webpage using BeautifulSoup and MarkItDown"""
+def scrape_webpage(state: Dict[str, Any]) -> Dict[str, Any]:
+    """Scrape content from a webpage using BeautifulSoup"""
+    url = state.get("url", "")
+    
     try:
-        # Send request
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
         }
         response = requests.get(url, headers=headers, timeout=10)
         response.raise_for_status()
         
-        # Parse HTML
         soup = BeautifulSoup(response.text, 'html.parser')
         
         # Extract title
         title = soup.find('title')
         title_text = title.text.strip() if title else ""
         
-        # Extract main content
         # Remove script and style elements
         for script in soup(["script", "style"]):
             script.extract()
@@ -37,18 +33,17 @@ def scrape_webpage(url: str) -> Dict[str, Any]:
                 break
         
         if not main_content:
-            # Fallback to body
             main_content = soup.find('body')
         
-        # Convert to markdown using markdownify
+        # Convert to markdown
         if main_content:
             markdown_content = markdownify.markdownify(str(main_content))
         else:
             markdown_content = ""
         
         # Clean up markdown
-        markdown_content = re.sub(r'\n{3,}', '\n\n', markdown_content)  # Remove excessive newlines
-        markdown_content = re.sub(r' {2,}', ' ', markdown_content)  # Remove excessive spaces
+        markdown_content = re.sub(r'\n{3,}', '\n\n', markdown_content)
+        markdown_content = re.sub(r' {2,}', ' ', markdown_content)
         
         # Extract metadata
         metadata = {

@@ -110,4 +110,5 @@ Response:
 
 Now, analyze the following research query and create an effective search plan:
 
-Research Query: {query}"""
+Research Query: {query}
+Research Depth: {depth}"""
