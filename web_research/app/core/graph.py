@@ -15,10 +15,6 @@ from core.tools.arxiv_search import arxiv_search
 from core.tools.webscraper import scrape_webpage
 from typing import Any, List 
 
-model = get_llm()
-tools = [tavily_search_tool, wikipedia_search, arxiv_search, scrape_webpage]
-#tool_model = model.bind_tools(tools=tools)
-
 def get_source_type(tool_name: ResearchTool) -> SourceType:
     """Map tool to source type"""
     mapping = {
@@ -171,7 +167,12 @@ def quality_router(state:ResearchState):
             return "search_gather"
     return "end"
 
-def create_graph():
+def create_graph(model_provider: str="ollama", model_name:str='qwen3:8b'):
+    global model 
+    model = get_llm(provider=model_provider, model_name=model_name)
+    # tools = [tavily_search_tool, wikipedia_search, arxiv_search, scrape_webpage]
+    # tool_model = model.bind_tools(tools=tools)
+    print("Loded model...")
     graph = StateGraph(ResearchState)
 
     graph.add_node("planner", planner)
