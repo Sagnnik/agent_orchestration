@@ -18,11 +18,11 @@ def get_llm(provider: str, model_name: str, api_key: str = None, temperature:int
     try:
         ModelClass = PROVIDER_CHAT_MODEL[provider]
         if provider == "ollama":
-            model = ModelClass(model=model_name, reasoning=True)
+            model = ModelClass(model=model_name, temperature=temperature, num_gpu=1)
         else:
             if not api_key:
                  print(f"API Key is missing for provider '{provider}'")
-            model = ModelClass(model=model_name, api_key=api_key, reasoning=True)
+            model = ModelClass(model=model_name, api_key=api_key, temperature=temperature)
         
         return model
     

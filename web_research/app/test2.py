@@ -1,25 +1,18 @@
-from core.agent import create_agent_streaming, create_agent
 from core.graph import create_graph
-import asyncio
 from uuid import uuid4
 from core.llm_response_models import ResearchDepth
+from dotenv import load_dotenv
+load_dotenv()
 
-# result = create_agent(
-#     thread_id=uuid4(),
-#     query="Explain transformer architecture in AI",
-#     max_iteration=3,
-#     depth="moderate",
-#     model_provider="ollama"
-# )
-graph = create_graph()
-app = graph.compile()
+model_provider: str="openai"
+model_name:str='gpt-4o'
+
+
+app = create_graph(model_provider, model_name)
 
 thread_id = uuid4().hex
 query = "Explain transformer architecture in AI"
 research_depth = ResearchDepth.MODERATE
-# config = {"configurable": {
-# "thread_id": str(thread_id)
-# }}
 
 initial_state = {
     "original_query": query,
@@ -30,9 +23,22 @@ initial_state = {
     "search_results": [],
     "thinking_logs": []
 }
+
 try:
-    result = app.invoke(initial_state)
+    print("Invoking app")
+    print(f"Initial state: {initial_state}")
+    result = app.ainvoke(initial_state, {"configurable": {"thread_id": thread_id}})
+    print("=" * 50)
+    print("FINAL RESULT:")
     print(result)
 except Exception as e:
-    print(str(e))
-    
+    print(f"Error occurred: {str(e)}")
+    import traceback
+    traceback.print_exc()
+
+finally: 
+    import requests
+    try:
+        requests.post("http://localhost:11434/api/generate", json={"model": model_name, "keep_alive": 0})
+    except:
+        pass

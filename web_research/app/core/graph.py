@@ -1,4 +1,3 @@
-#graph.py
 from langgraph.graph import StateGraph, END
 from langchain_core.messages import AIMessage
 from langgraph.prebuilt import ToolNode
@@ -13,7 +12,8 @@ from core.tools.tavily_search import tavily_search_tool
 from core.tools.wikipedia_search import wikipedia_search
 from core.tools.arxiv_search import arxiv_search
 from core.tools.webscraper import scrape_webpage
-from typing import Any, List 
+from typing import Any, List , Callable
+from functools import lru_cache
 
 def get_source_type(tool_name: ResearchTool) -> SourceType:
     """Map tool to source type"""
@@ -56,41 +56,26 @@ def parse_tool_results(raw_results: Any, tool_name: ResearchTool):
 
 class ResearchGraph:
     def __init__(self, model):
-        self.model = model
-
+        self.planner_model = model.with_structured_output(QueryPlanOutput)
+        self.synthesis_model = model.with_structured_output(SynthesisOutput)
+        self.quality_model = model.with_structured_output(QualityCheckOutput)
+        self.base_model = model
+    
     def planner(self, state: ResearchState) -> ResearchState:
         """Plans the Research Steps given the user query and search depth"""
-        prompt = QUERY_PLANNER_PROMPT.format(query= state['original_query'], depth=state['depth'])
-        planner_model = self.model.with_structured_output(QueryPlanOutput)
-        response = planner_model.invoke([prompt])
-        thinking_logs = response.additional_kwargs.get("reasoning_content") or "No reasoning field found."
-        return {"search_plan": response, "thinking_logs": [thinking_logs]}
-
-    # No need for LLM to call the tools
-    # def search_gather(state: ResearchState) -> ResearchState:
-    #     """Create a search and gather agent that executes search using various tools"""
-    #     prompt = SEARCH_GATHER_INSTRUCTIONS
-    #     search_gather_model = tool_model.with_structured_output(SearchGatherOutput)
-    #     response = search_gather_model.invoke([prompt] + [state['search_plan']])
-    #     thinking_logs = response.additional_kwargs.get("reasoning_content") or "No reasoning field found."
-    #     return {"search_results": [response], "thinking_logs": [thinking_logs]}
-
-    # def tool_router(state:ResearchState):
-    #     """
-    #     Search and Gather node calls this tool node
-    #     Available tools: Tavily_search, Wikipeddia, Arxiv, Webscraper 
-    #     """
-    #     last_msg = state['search_results'][-1]
-    #     if isinstance(last_msg, AIMessage) and getattr(last_msg, "tool_calls", None):
-    #         return "tool_node"
-    #     else:
-    #         return "synthesis_cite"
-        
-    # tool_node = ToolNode(tools=tools)
+        prompt = QUERY_PLANNER_PROMPT.format(query=state['original_query'], depth=state['depth'])
+        print("Calling the planner agent")
+        response = self.planner_model.invoke([prompt])
+        print(response)
+        #thinking_logs = response.additional_kwargs.get("reasoning_content") or "No reasoning field found."
+        #return {"search_plan": response, "thinking_logs": [thinking_logs]}
+        return {"search_plan": response}
 
 # Manual Tool Calling Node
-    def search_gather(self, state:ResearchState) -> ResearchState:
+    @staticmethod
+    def search_gather(state:ResearchState) -> ResearchState:
         """Execute searches based on plan or additional queries"""
+        print("Calling the search_gather agent")
         if state.get('quality_check') and state['quality_check'].action == "research_more":
             queries_to_execute = state["quality_check"].next_steps.additional_queries
         else:
@@ -134,31 +119,44 @@ class ResearchGraph:
         """Synthesize the report with proper citations"""
         original_query = state['original_query']
         search_results = state['search_results']
-        prompt = SYNTHESIS_PROMPT.format(original_query= original_query, search_results= search_results)
-        synthesis_model = self.model.with_structured_output(SynthesisOutput)
-        response = synthesis_model.invoke([prompt])
-        thinking_logs = response.additional_kwargs.get("reasoning_content") or "No reasoning field found."
-        return {"synthesis": response, "thinking_logs": [thinking_logs]}
+        prompt = SYNTHESIS_PROMPT.format(original_query=original_query, search_results=search_results)
+        print("Calling the synthesis agent")
+        response = self.synthesis_model.invoke([prompt])
+        # thinking_logs = response.additional_kwargs.get("reasoning_content") or "No reasoning field found."
+        # return {"synthesis": response, "thinking_logs": [thinking_logs]}
+        return {"synthesis": response}
 
-    def quality_checker(self, state:ResearchState) -> ResearchState:
+    def quality_checker(self, state: ResearchState) -> ResearchState:
         """Check the quality of the generated report"""
         original_query = state['original_query']
         report = state['synthesis'].report
         citations = state['synthesis'].citations
         search_results = state['search_results']
-        prompt = QUALITY_CHECK_PROMPT.format(original_query=original_query, report=report, citations=citations, search_results=search_results)
-        quality_model = self.model.with_structured_output(QualityCheckOutput)
-        response = quality_model.invoke([prompt])
-        thinking_logs = response.additional_kwargs.get("reasoning_content") or "No reasoning field found."
+        prompt = QUALITY_CHECK_PROMPT.format(
+            original_query=original_query, 
+            report=report, 
+            citations=citations, 
+            search_results=search_results
+        )
+        print("Calling the quality agent")
+        response = self.quality_model.invoke([prompt])
+        # thinking_logs = response.additional_kwargs.get("reasoning_content") or "No reasoning field found."
+        # return {
+        #     "quality_check": response,
+        #     "thinking_logs": [thinking_logs],
+        #     "is_complete": response.passed,
+        #     "iteration_count": state['iteration_count'] + 1,
+        #     "action": response.action
+        # }
         return {
-        "quality_check": response,
-        "thinking_logs": [thinking_logs],
-        "is_complete": response.passed,
-        "iteration_count": state['iteration_count'] + 1,
-        "action": response.action
-    }
+            "quality_check": response,
+            "is_complete": response.passed,
+            "iteration_count": state['iteration_count'] + 1,
+            "action": response.action
+        }
 
-    def quality_router(self, state:ResearchState):
+    @staticmethod
+    def quality_router(state:ResearchState, model=None):
         """Router to route the flow from Quality Checker node to either search_gather or synthesis_cite node or END"""
         iteration = state['iteration_count']
         max_iteration = state['max_iterations']
@@ -170,48 +168,47 @@ class ResearchGraph:
             elif action == "research_more":
                 return "search_gather"
         return "end"
+    
+# need to inject the model to decouple the model from the instance of the class
+# can pass a mock model to instantiate the graph as well
+# option 2: using node-> partial(rg.planner, model=model)
+def _create_node_wrapper(func: Callable, model) -> Callable:
+    def wrapper(state: ResearchState) -> ResearchState:
+        return func(state, model)
+    return wrapper
 
-def create_graph(model_provider: str="ollama", model_name:str='qwen3:4b'): 
+
+#@lru_cache(maxsize=10)
+def create_graph(model_provider: str="ollama", model_name: str='qwen3:4b'): 
     model = get_llm(provider=model_provider, model_name=model_name)
-    # tools = [tavily_search_tool, wikipedia_search, arxiv_search, scrape_webpage]
-    # tool_model = model.bind_tools(tools=tools)
-    print("Loded model...")
-    research_graph = ResearchGraph(model)
+    print(f"Loaded model: {model_provider}/{model_name}")
+
+    # Create a single instance of ResearchGraph
+    rg = ResearchGraph(model)
+    
     graph = StateGraph(ResearchState)
 
-    graph.add_node("planner", research_graph.planner)
-    graph.add_node("search_gather", research_graph.search_gather)
-    #graph.add_node("tool_node", tool_node)
-    graph.add_node("synthesis_cite", research_graph.synthesis_cite)
-    graph.add_node("quality_checker", research_graph.quality_checker)
+    # Bind instance methods
+    graph.add_node("planner", rg.planner)
+    graph.add_node("search_gather", ResearchGraph.search_gather)
+    graph.add_node("synthesis_cite", rg.synthesis_cite)
+    graph.add_node("quality_checker", rg.quality_checker)
 
     graph.set_entry_point("planner")
     graph.add_edge("planner", "search_gather")
-    # graph.add_conditional_edges(
-    #     "search_gather", 
-    #     tool_router, 
-    #     {
-    #         "tool_node":"tool_node", 
-    #         "synthesis_cite":"synthesis_cite"
-    #     })
-    #graph.add_edge("tool_node", "search_gather")
     graph.add_edge("search_gather", "synthesis_cite")
     graph.add_edge("synthesis_cite", "quality_checker")
     graph.add_conditional_edges(
         "quality_checker", 
-        research_graph.quality_router, 
+        ResearchGraph.quality_router, 
         {
             "synthesis_cite": "synthesis_cite",
             "search_gather": "search_gather", 
             "end": END
         }
     )
-    return graph
-
-
-
-
-
-
-
-
+    
+    print("graph created...")
+    compiled = graph.compile()
+    print("graph compiled...")
+    return compiled
