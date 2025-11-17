@@ -80,12 +80,19 @@ class Citations(BaseModel):
     quote: str = Field(description="Exact or paraphrased text from the source supporting the claim")
     confidence: ConfidenceLevel = Field(description="confidence level in this citation (high | medium | low)")
 
+class SourceCount(BaseModel):
+    """Count of sources by type"""
+    source_type: str = Field(description="Type of source (arxiv, wikipedia, web)")
+    count: int = Field(description="Number of sources of this type")
+
 class SynthesisMetadata(BaseModel):
     """Metadata about the synthesized report"""
     word_count: int = Field(description="Approximate word count of the report")
     num_sources: int = Field(description="Number of unique sources cited")
-    source_breakdown: Dict[str, int] = Field(default_factory=dict, description="Count of sources by type (e.g., {'arxiv': 3, 'web':2})")
-    self_assesment: str = Field(description="Brief self-assesment of how well the resource covers the query")
+    source_breakdown: List[SourceCount] = Field(
+        description="Count of sources by type"
+    )
+    self_assesment: str = Field(description="Brief self-assessment of how well the resource covers the query")
 
 class SynthesisOutput(BaseModel):
     """Output from Synthesis & Citation node"""
@@ -113,15 +120,15 @@ class AdditionalQuery(BaseModel):
 
 class NextSteps(BaseModel):
     """Recommended next steps if quality check fails"""
-    additional_queries: List[AdditionalQuery] = Field(default_factory=list, description="New search queries with tools to fill gaps")
-    revision_instructions: Optional[str] = Field(default=None, description="Specific instructions for revising the report")
+    additional_queries: Optional[List[AdditionalQuery]] = Field(default=None, description="New search queries with tools to fill gaps (only if action is 'research_more')")
+    revision_instructions: Optional[str] = Field(default=None, description="Specific instructions for revising the report (only if action is 'revise')")
 
 class QualityCheckOutput(BaseModel):
     """Output from Quality Check node"""
     passed: bool = Field(description="Whether the report passes quality standards")
     scores: QualityScores = Field(description="Quality assessment scores")
-    citation_issues: List[CitationIssue] = Field(default_factory=list, description="List of citation problems found")
-    coverage_gaps: List[str] = Field(default_factory=list, description="Aspects of the query not adequately covered")
+    citation_issues: List[CitationIssue] = Field(description="List of citation problems found")
+    coverage_gaps: List[str] = Field(description="Aspects of the query not adequately covered")
     action: QualityAction = Field(description="Recommended action to take (approve | revise | research_more)")
-    next_steps: NextSteps = Field(description="Specific next steps if action is not 'approve'")
+    next_steps: Optional[NextSteps] = Field(default=None, description="Specific next steps (only required if action is 'revise' or 'research_more')")
 

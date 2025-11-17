@@ -19,7 +19,7 @@ initial_state = {
     "original_query": query,
     "depth": research_depth,
     "iteration_count": 0,
-    "max_iterations": 5, 
+    "max_iterations": 3, 
     "is_complete": False,
     "search_results": [],
 }
