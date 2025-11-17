@@ -11,7 +11,6 @@ class ResearchState(TypedDict):
     synthesis: Optional[SynthesisOutput]  
     quality_check: Optional[QualityCheckOutput]  
     action: Optional[str]
-    thinking_logs: Annotated[List[str], operator.add]
     iteration_count: int
     max_iterations: int
     is_complete: bool

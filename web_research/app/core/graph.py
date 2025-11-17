@@ -11,17 +11,24 @@ from core.llm import get_llm
 from core.tools.tavily_search import tavily_search_tool
 from core.tools.wikipedia_search import wikipedia_search
 from core.tools.arxiv_search import arxiv_search
-from core.tools.webscraper import scrape_webpage
+#from core.tools.webscraper import scrape_webpage
 from typing import Any, List , Callable
 from functools import lru_cache
+
+TOOL_FUNCTIONS = {
+    ResearchTool.TAVILY: tavily_search_tool,
+    ResearchTool.WIKIPEDIA: wikipedia_search,
+    ResearchTool.ARXIV: arxiv_search,
+    #ResearchTool.WEBSCRAPER: scrape_webpage
+}
 
 def get_source_type(tool_name: ResearchTool) -> SourceType:
     """Map tool to source type"""
     mapping = {
         ResearchTool.TAVILY: SourceType.WEB,
-        ResearchTool.WIKIPEDIA: SourceType.ENCYCLOPEDIA,
-        ResearchTool.ARXIV: SourceType.ACADEMIC,
-        ResearchTool.WEBSCRAPER: SourceType.WEB
+        ResearchTool.WIKIPEDIA: SourceType.WIKIPEDIA,
+        ResearchTool.ARXIV: SourceType.ARXIV,
+        #ResearchTool.WEBSCRAPER: SourceType.WEB
     }
     return mapping.get(tool_name, SourceType.WEB)
 
@@ -44,13 +51,22 @@ def parse_tool_results(raw_results: Any, tool_name: ResearchTool):
     
     elif tool_name in [ResearchTool.WIKIPEDIA, ResearchTool.ARXIV]:
         if isinstance(raw_results, list):
-            return raw_results
+            parsed = []
+            for result in raw_results:
+                parsed.append({
+                    "title": result.get('title', ''),
+                    "url": result.get('url', ''),
+                    "content": result.get('snippet', ''),
+                    "source": result.get('source', ''),
+                    "metadata": result.get('metadata', {})
+                })
+            return parsed
         return []
     
-    elif tool_name == ResearchTool.WEBSCRAPER:
-        if isinstance(raw_results, dict):
-            return [raw_results]
-        return []
+    # elif tool_name == ResearchTool.WEBSCRAPER:
+    #     if isinstance(raw_results, dict):
+    #         return [raw_results]
+    #     return []
     
     return []
 
@@ -67,11 +83,9 @@ class ResearchGraph:
         print("Calling the planner agent")
         response = self.planner_model.invoke([prompt])
         print(response)
-        #thinking_logs = response.additional_kwargs.get("reasoning_content") or "No reasoning field found."
-        #return {"search_plan": response, "thinking_logs": [thinking_logs]}
         return {"search_plan": response}
 
-# Manual Tool Calling Node
+    # Manual Tool Calling Node
     @staticmethod
     def search_gather(state:ResearchState) -> ResearchState:
         """Execute searches based on plan or additional queries"""
@@ -86,20 +100,11 @@ class ResearchGraph:
         for planned_query in queries_to_execute:
             for tool_name in planned_query.tools:
                 try:
-                    if tool_name == ResearchTool.WEBSCRAPER:
-                        tool_input = {"url": planned_query.query}
-                    else:
-                        tool_input = {"query": planned_query.query}
-                    if tool_name == ResearchTool.TAVILY:
-                        raw_results = tavily_search_tool(tool_input)
-                    elif tool_name == ResearchTool.WIKIPEDIA:
-                        raw_results = wikipedia_search(tool_input)
-                    elif tool_name == ResearchTool.ARXIV:
-                        raw_results = arxiv_search(tool_input)
-                    elif tool_name == ResearchTool.WEBSCRAPER:
-                        raw_results = scrape_webpage(tool_input)
-                    else:
+                    if tool_name not in TOOL_FUNCTIONS:
                         continue
+                    #tool_input = {"url": planned_query.query} if tool_name == ResearchTool.WEBSCRAPER else {"query": planned_query.query}
+                    tool_input = {"query": planned_query.query}
+                    raw_results = TOOL_FUNCTIONS[tool_name](tool_input)
 
                     search_result = SearchQueryResult(
                         query=planned_query.query,
@@ -110,7 +115,7 @@ class ResearchGraph:
                     all_results.append(search_result)
 
                 except Exception as e:
-                    print(f"Error executing {tool_name} for query '{planned_query.query}': {e}")
+                    print(f"Error executing {tool_name} for query '{planned_query.query}': {str(e)}")
                     continue
 
         return {"search_results": all_results}
@@ -122,8 +127,6 @@ class ResearchGraph:
         prompt = SYNTHESIS_PROMPT.format(original_query=original_query, search_results=search_results)
         print("Calling the synthesis agent")
         response = self.synthesis_model.invoke([prompt])
-        # thinking_logs = response.additional_kwargs.get("reasoning_content") or "No reasoning field found."
-        # return {"synthesis": response, "thinking_logs": [thinking_logs]}
         return {"synthesis": response}
 
     def quality_checker(self, state: ResearchState) -> ResearchState:
@@ -140,14 +143,6 @@ class ResearchGraph:
         )
         print("Calling the quality agent")
         response = self.quality_model.invoke([prompt])
-        # thinking_logs = response.additional_kwargs.get("reasoning_content") or "No reasoning field found."
-        # return {
-        #     "quality_check": response,
-        #     "thinking_logs": [thinking_logs],
-        #     "is_complete": response.passed,
-        #     "iteration_count": state['iteration_count'] + 1,
-        #     "action": response.action
-        # }
         return {
             "quality_check": response,
             "is_complete": response.passed,
@@ -168,14 +163,6 @@ class ResearchGraph:
             elif action == "research_more":
                 return "search_gather"
         return "end"
-    
-# need to inject the model to decouple the model from the instance of the class
-# can pass a mock model to instantiate the graph as well
-# option 2: using node-> partial(rg.planner, model=model)
-def _create_node_wrapper(func: Callable, model) -> Callable:
-    def wrapper(state: ResearchState) -> ResearchState:
-        return func(state, model)
-    return wrapper
 
 
 #@lru_cache(maxsize=10)

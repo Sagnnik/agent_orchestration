@@ -40,7 +40,6 @@ def create_agent(thread_id:UUID, query:str, max_iteration:int=5, depth:str=None,
             "max_iterations": max_iteration, 
             "is_complete": False,
             "search_results": [],
-            "thinking_logs": []
         }
 
         result = app.invoke(initial_state, config=config)
@@ -87,7 +86,6 @@ async def create_agent_streaming(thread_id:UUID, query:str, max_iteration:int=5,
             "max_iterations": max_iteration, 
             "is_complete": False,
             "search_results": [],
-            "thinking_logs": []
         }
 
         async for event in app.astream(initial_state, config=config):

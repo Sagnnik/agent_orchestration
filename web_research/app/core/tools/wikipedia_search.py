@@ -1,11 +1,9 @@
 import wikipedia
 from typing import List, Dict, Any
+from core.llm_response_models import PlannedQuery
 
-def wikipedia_search(state: Dict[str, Any]) -> List[Dict[str, Any]]:
+def wikipedia_search(query: str, max_results:int=5) -> List[Dict[str, Any]]:
     """Search using Wikipedia API"""
-    query = state.get("query", "")
-    max_results = state.get("max_results", 3)
-    
     try:
         search_results = wikipedia.search(query, results=max_results)
         

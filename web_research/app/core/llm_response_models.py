@@ -33,13 +33,13 @@ class ResearchTool(str, Enum):
     WIKIPEDIA = "wikipedia"
     TAVILY = "tavily"
     ARXIV = "arxiv"
-    WEBSCRAPER = "webscraper"
+    #WEBSCRAPER = "webscraper"
 
 # Models for Query Planner Node
 class PlannedQuery(BaseModel):
     """A single query with assigned tools"""
     query: str = Field(description="The search query to execute")
-    tools: List[ResearchTool] = Field(description="List of tools to be used for this query (wikipedia | tavily | arxiv | webscraper)")
+    tools: List[ResearchTool] = Field(description="List of tools to be used for this query (wikipedia | tavily | arxiv )")
 
 class QueryPlanOutput(BaseModel):
     """Output from the Query Planner node"""
@@ -61,7 +61,7 @@ class SearchResult(BaseModel):
 class SearchQueryResult(BaseModel):
     """Results for a single search query"""
     query: str = Field(description="The search query that was executed")
-    tool: ResearchTool = Field(description="The tool that was executed for this query (wikipedia | tavily | arxiv | webscraper)") 
+    tool: ResearchTool = Field(description="The tool that was executed for this query (wikipedia | tavily | arxiv )") 
     source_type: SourceType = Field(description="Type of the sources returned (wikipedia | arxiv | web)")
     timestamp: datetime = Field(default_factory=datetime.now)
     results: List[SearchResult] = Field(description="List of Search Results")
@@ -109,7 +109,7 @@ class CitationIssue(BaseModel):
 class AdditionalQuery(BaseModel):
     """Query with tools for research_more action"""
     query: str = Field(description="Search query to fill information gap")
-    tools: List[ResearchTool] = Field(description="Tools to use for this query (wikipedia | tavily | arxiv | webscraper)")
+    tools: List[ResearchTool] = Field(description="Tools to use for this query (wikipedia | tavily | arxiv )")
 
 class NextSteps(BaseModel):
     """Recommended next steps if quality check fails"""

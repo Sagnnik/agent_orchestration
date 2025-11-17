@@ -5,13 +5,10 @@ from typing import Dict, Any
 
 load_dotenv()
 
-def tavily_search_tool(state: Dict[str, Any]) -> Dict[str, Any]:
+def tavily_search_tool(query: str, max_results:int=5) -> Dict[str, Any]:
     """
     A search engine optimized for comprehensive, accurate, and trusted results.
     """
-    query = state.get("query", "")
-    max_results = state.get("max_results", 5)
-    
     search_tool = TavilySearch(
         search_depth="advanced",
         max_results=max_results,

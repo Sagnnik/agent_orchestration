@@ -13,12 +13,11 @@ You have access to multiple information sources:
 - **Wikipedia**: Background information, definitions, overviews
 - **Tavily Search**: Current web content, news, general information
 - **arXiv**: Academic papers, scientific research (physics, CS, math, etc.)
-- **Jina Reader**: Full-text extraction from URLs (used automatically)
 
 Consider which sources are most appropriate for the query.
 
 ## Guidelines
-- Create 2-4 search queries based on the specified depth
+- Create 2-5 search queries based on the specified depth
 - Each query should target a distinct aspect of the research
 - Use clear, specific language that search engines understand
 - For controversial topics, include queries that capture different viewpoints
@@ -44,8 +43,8 @@ You MUST respond with valid JSON matching this structure:
 
 ## Depth Guidelines
 - shallow: Simple factual queries, basic definitions (1-2 queries)
-- moderate: Standard research topics requiring multiple angles (3 queries)
-- deep: Complex topics requiring comprehensive coverage (4 queries)
+- moderate: Standard research topics requiring multiple angles (3-4 queries)
+- deep: Complex topics requiring comprehensive coverage (5+ queries)
 
 Now, analyze the following research query and create an effective search plan:
 

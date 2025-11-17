@@ -4,6 +4,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_anthropic import ChatAnthropic
 from langchain_core.language_models import BaseChatModel
 from dotenv import load_dotenv
+import os
 
 load_dotenv()   # This is for dev only
 
@@ -21,7 +22,14 @@ def get_llm(provider: str, model_name: str, api_key: str = None, temperature:int
             model = ModelClass(model=model_name, temperature=temperature, num_gpu=1)
         else:
             if not api_key:
-                 print(f"API Key is missing for provider '{provider}'")
+                env_var_map = {
+                    "openai": "OPENAI_API_KEY",
+                    "anthropic": "ANTHROPIC_API_KEY",
+                    "google": "GOOGLE_API_KEY"
+                }
+                env_var = env_var_map.get(provider, f"{provider.upper()}_API_KEY")
+                api_key = os.getenv(env_var)
+                print(f"Using API key from environment variable: {env_var}")
             model = ModelClass(model=model_name, api_key=api_key, temperature=temperature)
         
         return model
