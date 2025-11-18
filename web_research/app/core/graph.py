@@ -9,6 +9,7 @@ from core.utils import get_source_type, parse_tool_results, format_search_result
 from core.tools.arxiv_search import arxiv_search
 from core.tools.wikipedia_search import wikipedia_search
 from core.tools.tavily_search import tavily_search_tool
+import asyncio
 
 TOOL_FUNCTIONS = {
     ResearchTool.TAVILY: tavily_search_tool,
@@ -23,54 +24,59 @@ class ResearchGraph:
         self.quality_model = model.with_structured_output(QualityCheckOutput)
         self.base_model = model
     
-    def planner(self, state: ResearchState) -> ResearchState:
+    async def planner(self, state: ResearchState) -> ResearchState:
         """Plans the Research Steps given the user query and search depth"""
-        
+        #print("\nCalling the planner agent\n")
         prompt = QUERY_PLANNER_PROMPT.format(query=state['original_query'], depth=state['depth'])
-        
-        print("\nCalling the planner agent \n")
-        response = self.planner_model.invoke([prompt])
-        print(response)
+        response = await self.planner_model.ainvoke([prompt])
         
         return {"search_plan": response}
 
     @staticmethod
-    def search_gather(state: ResearchState) -> ResearchState:
+    async def search_gather(state: ResearchState) -> ResearchState:
         """Execute searches based on plan or additional queries"""
-        print("Calling the search_gather agent")
+        #print("\nCalling the search_gather agent\n")
         
         if state.get('quality_check') and state['quality_check'].next_steps and state['quality_check'].next_steps.additional_queries:
             queries_to_execute = state["quality_check"].next_steps.additional_queries
-            print(f"Executing {len(queries_to_execute)} additional queries from quality check")
+            #print(f"Executing {len(queries_to_execute)} additional queries from quality check")
         else:
             queries_to_execute = state['search_plan'].queries
-            print(f"Executing {len(queries_to_execute)} queries from search plan")
+            #print(f"Executing {len(queries_to_execute)} queries from search plan")
 
         all_results = []
 
+        async def execute_search(planned_query, tool_name):
+            try:
+                if tool_name not in TOOL_FUNCTIONS:
+                    return None
+                
+                loop = asyncio.get_event_loop()
+                raw_results = await loop.run_in_executor(None, TOOL_FUNCTIONS[tool_name], planned_query.query)
+
+                search_results = SearchQueryResult(
+                    query=planned_query.query,
+                    tool=tool_name,
+                    source_type=get_source_type(tool_name),
+                    results=parse_tool_results(raw_results, tool_name)
+                )
+                return search_results
+            
+            except Exception as e:
+                #print(f"Error executing {tool_name} for query '{planned_query}'")
+                return None
+            
+        tasks = []
         for planned_query in queries_to_execute:
             for tool_name in planned_query.tools:
-                try:
-                    if tool_name not in TOOL_FUNCTIONS:
-                        continue
-                    
-                    raw_results = TOOL_FUNCTIONS[tool_name](planned_query.query)
+                tasks.append(execute_search(planned_query, tool_name))
 
-                    search_result = SearchQueryResult(
-                        query=planned_query.query,
-                        tool=tool_name,
-                        source_type=get_source_type(tool_name),
-                        results=parse_tool_results(raw_results, tool_name)
-                    )
-                    all_results.append(search_result)
-
-                except Exception as e:
-                    print(f"Error executing {tool_name} for query '{planned_query.query}': {str(e)}")
-                    continue
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        all_results = [result for result in results if result is not None]
 
         return {"search_results": all_results}
 
-    def synthesis_cite(self, state: ResearchState) -> ResearchState:
+    async def synthesis_cite(self, state: ResearchState) -> ResearchState:
         """Synthesize the report with proper citations"""
         original_query = state['original_query']
         search_results = state['search_results']
@@ -78,13 +84,12 @@ class ResearchGraph:
         
         prompt = SYNTHESIS_PROMPT.format(original_query=original_query, search_results=formatted_results)
         
-        print("\nCalling the synthesis agent \n")
-        response = self.synthesis_model.invoke([prompt])
-        print(response)
+        #print("\nCalling the synthesis agent \n")
+        response = await self.synthesis_model.ainvoke([prompt])
         
         return {"synthesis": response}
 
-    def quality_checker(self, state: ResearchState) -> ResearchState:
+    async def quality_checker(self, state: ResearchState) -> ResearchState:
         """Check the quality of the generated report"""
         
         original_query = state['original_query']
@@ -103,9 +108,8 @@ class ResearchGraph:
             search_results=search_results
         )
 
-        print("\nCalling the quality agent \n")
-        response = self.quality_model.invoke([prompt])
-        print(response)
+        #print("\nCalling the quality agent \n")
+        response = await self.quality_model.ainvoke([prompt])
 
         return {
             "quality_check": response,
@@ -130,18 +134,17 @@ class ResearchGraph:
             
             action = quality_check.action if quality_check else None
             if action == QualityAction.REVISE:
-                print("Routing to synthesis_cite for revision")
+                #print("Routing to synthesis_cite for revision")
                 return "synthesis_cite"
             elif action == QualityAction.RESEARCH_MORE:
-                print("Routing to search_gather for more research")
+                #print("Routing to search_gather for more research")
                 return "search_gather"
         
-        print("Routing to end")
+        #print("Routing to end")
         return "end"
 
 
-#@lru_cache(maxsize=10) -> useless langgrpah object is not hashable
-def create_graph(model_provider: str="ollama", model_name: str='qwen3:4b'): 
+def create_graph(checkpointer=None, model_provider: str="openai", model_name: str='gpt-4o-mini'): 
     model = get_llm(provider=model_provider, model_name=model_name)
     print(f"Loaded model: {model_provider}/{model_name}")
 
@@ -169,6 +172,9 @@ def create_graph(model_provider: str="ollama", model_name: str='qwen3:4b'):
     )
     
     print("graph created...")
-    compiled = graph.compile()
+    if checkpointer:
+        compiled = graph.compile(checkpointer=checkpointer)
+    else:
+        compiled = graph.compile()
     print("graph compiled...")
     return compiled

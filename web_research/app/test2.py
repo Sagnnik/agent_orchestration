@@ -1,44 +1,24 @@
-from core.graph import create_graph
+from core.agent import run_agent_streaming
 from uuid import uuid4
-from core.llm_response_models import ResearchDepth
-from dotenv import load_dotenv
 import asyncio
-load_dotenv()
 
-model_provider: str="openai"
-model_name:str='gpt-4o-mini'
+async def main():
+    thread_id = uuid4().hex
+    query = "What are the recent advancements in Quantum Computing?"
+    async for event in run_agent_streaming(thread_id=thread_id, query=query):
+        event_type = event.get("type")
 
+        if event_type == "node_start":
+            print(f"\nStarting Node: {event['node']}\n")
 
-app = create_graph(model_provider, model_name)
+        elif event_type == "node_end":
+            print(f"\nCompleted Node: {event['node']}\n")
 
-thread_id = uuid4().hex
-query = "Explain transformer architecture in AI"
-research_depth = ResearchDepth.MODERATE
+        elif event_type == "token":
+            print(event['content'], end='', flush=True)
 
-initial_state = {
-    "original_query": query,
-    "depth": research_depth,
-    "iteration_count": 0,
-    "max_iterations": 3, 
-    "is_complete": False,
-    "search_results": [],
-}
+        elif event_type == "error":
+            print(f"\nError: {event['message']}")
 
-try:
-    print("Invoking app")
-    print(f"Initial state: {initial_state}")
-    result = app.invoke(initial_state, {"configurable": {"thread_id": thread_id}})
-    print("=" * 50)
-    print("FINAL RESULT:")
-    print(result)
-except Exception as e:
-    print(f"Error occurred: {str(e)}")
-    import traceback
-    traceback.print_exc()
-
-    # finally: 
-    #     import requests
-    #     try:
-    #         requests.post("http://localhost:11434/api/generate", json={"model": model_name, "keep_alive": 0})
-    #     except:
-    #         pass
+asyncio.run(main())
+        

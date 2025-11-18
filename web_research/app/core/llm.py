@@ -15,7 +15,7 @@ PROVIDER_CHAT_MODEL = {
     "google": ChatGoogleGenerativeAI
 }
 
-def get_llm(provider: str, model_name: str, api_key: str = None, temperature:int=0) -> BaseChatModel:
+def get_llm(provider: str='openai', model_name: str='gpt-4o-mini', api_key: str = None, temperature:int=0) -> BaseChatModel:
     try:
         ModelClass = PROVIDER_CHAT_MODEL[provider]
         if provider == "ollama":
