@@ -32,7 +32,7 @@ The graph consists of the following nodes:
 
 The following diagram illustrates the flow of the research agent's graph:
 
-![Graph Structure](graph_structure.png)
+![Graph Structure](web_researcher_v1.png)
 
 The diagram shows the cyclical nature of the graph, where the agent can iteratively refine its research by moving between the `search_gather`, `synthesis_cite`, and `quality_checker` nodes until a satisfactory result is achieved.
 
