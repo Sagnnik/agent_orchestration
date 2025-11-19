@@ -20,8 +20,8 @@ async def run_research_agent(
     task_id: str,
     thread_id: str,
     query: str,
-    depth: str,
     max_iteration: int,
+    depth: str,
     model_provider: str,
     model_name: str
 ):
