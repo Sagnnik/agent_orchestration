@@ -2,11 +2,12 @@ from langgraph.checkpoint.memory import MemorySaver
 from fastapi import APIRouter, HTTPException, BackgroundTasks
 from fastapi.responses import JSONResponse, StreamingResponse
 from app.core.graph import create_graph
-from app.utils.helper import get_research_depth, run_research_agent
+from app.utils.helper import run_research_agent
 from app.services.cache import get_task_status, store_task_status
 from app.models.models import SearchRequest, TaskStatusResponse
-from redis.asyncio import aioredis
-from uuid import uuid4, UUID
+from app.core.agent import run_agent_streaming
+from app.utils.logger import logger
+from uuid import uuid4
 import json
 
 router = APIRouter()
@@ -17,7 +18,12 @@ async def research_sync(request: SearchRequest):
 
     try:
         thread_id = uuid4().hex
-        research_depth = get_research_depth(request.depth)
+        logger.info(
+            f"[research_sync] Started | thread_id={thread_id} | "
+            f"query={request.query!r} | depth={request.depth} | "
+            f"max_iter={request.max_iteration} | model={request.model_provider}:{request.model_name}"
+        )
+        research_depth = request.depth
 
         checkpointer = MemorySaver()
         app_graph = create_graph(
@@ -37,6 +43,12 @@ async def research_sync(request: SearchRequest):
         }
         result = await app_graph.ainvoke(initial_state, config=config)
 
+        logger.info(
+            f"[research_sync] Completed | thread_id={thread_id} | "
+            f"iterations={result.get('iteration_count', 0)} | "
+            f"search_results={len(result.get('search_results', []))}"
+        )
+
         return {
             "thread_id": str(thread_id),
             "query": request.query,
@@ -48,6 +60,7 @@ async def research_sync(request: SearchRequest):
         }
     
     except Exception as e:
+        logger.exception(f"[research_sync] Error | thread_id={thread_id}")
         raise HTTPException(status_code=500, detail=f"Error running research task: {str(e)}")
 
 @router.post("/research/async")
@@ -61,6 +74,12 @@ async def research_async(request: SearchRequest, background_tasks: BackgroundTas
     try:
         task_id = str(uuid4().hex)
         thread_id = str(uuid4().hex)
+
+        logger.info(
+            f"[research_async] Enqueue | task_id={task_id} | thread_id={thread_id} | "
+            f"query={request.query!r} | depth={request.depth} | "
+            f"max_iter={request.max_iteration} | model={request.model_provider}:{request.model_name}"
+        )
 
         await store_task_status(task_id, "pending", {
             "thread_id": thread_id,
@@ -85,9 +104,10 @@ async def research_async(request: SearchRequest, background_tasks: BackgroundTas
             "message": "Research task started. Use GET /research/status/{task_id} to check progress"
         }
     except Exception as e:
+        logger.exception(f"[research_async] Error starting background task | task_id={task_id}")
         raise HTTPException(status_code=500, detail=f"Error starting research task: {str(e)}")
     
-@router.get("/research/status/{task_id}", response_class=TaskStatusResponse)
+@router.get("/research/status/{task_id}", response_model=TaskStatusResponse)
 async def get_research_status(task_id: str):
     """
     Check the status of the background research task
@@ -97,11 +117,14 @@ async def get_research_status(task_id: str):
         task_data = await get_task_status(task_id)
 
         if not task_data:
+            logger.warning(f"[get_research_status] Task not found | task_id={task_id}")
             raise HTTPException(status_code=404, detail="Task Not Found")
         
+        logger.debug(f"[get_research_status] Task status | task_id={task_id} | status={task_data.get('status')}")
         return TaskStatusResponse(**task_data)
     
     except Exception as e:
+        logger.exception(f"[get_research_status] Error | task_id={task_id}")
         raise HTTPException(status_code=500, detail=f"Error retrieving task status: {str(e)}")
     
 
@@ -109,75 +132,54 @@ async def get_research_status(task_id: str):
 async def research_stream(request: SearchRequest):
     """Streaming generated tokens for chat app"""
     thread_id = uuid4().hex
-    exclude_node_names = ['LangGraph', 'RunnableSequence', 'RunnableLambda']
+    logger.info(
+        f"[research_stream] Start stream | thread_id={thread_id} | "
+        f"query={request.query!r} | depth={request.depth} | "
+        f"max_iter={request.max_iteration} | model={request.model_provider}:{request.model_name}"
+    )
     
     async def event_generator():
         try:
-            research_depth = get_research_depth(request.depth)
-
-            checkpointer = MemorySaver()
-            app_graph = create_graph(
-                checkpointer=checkpointer,
-                model_provider=request.model_provider,
-                model_name=request.model_name
-            )
-
-            config = {"configurable": {"thread_id": str(thread_id)}}
-            initial_state = {
-                "original_query": request.query,
-                "depth": research_depth,
-                "iteration_count": 0,
-                "max_iterations": request.max_iteration,
-                "is_complete": False,
-                "search_results": [],
-            }
-
             yield f"data: {json.dumps({'type': 'started', 'thread_id': str(thread_id), 'query': request.query})}\n\n"
 
-            async for event in app_graph.ainvoke(input=initial_state, config=config, version="v2"):
-                event_type = event.get('type')
+            async for event in run_agent_streaming(
+                thread_id=thread_id,
+                query=request.query,
+                max_iteration=request.max_iteration,
+                depth=request.depth,
+                model_provider=request.model_provider,
+                model_name=request.model_name,
+                api_key = request.api_key
+            ):
+                event_type = event.get("type")
+                
+                if event_type == "node_start":
+                    yield f"data: {json.dumps({'type': 'node_start', 'node': event['node']})}\n\n"
+                
+                elif event_type == "node_end":
+                    yield f"data: {json.dumps({'type': 'node_end', 'node': event['node']})}\n\n"
+                
+                elif event_type == "token":
+                    yield f"data: {json.dumps({'type': 'token', 'content': event['content']})}\n\n"
+                
+                elif event_type == "error":
+                    yield f"data: {json.dumps({'type': 'error', 'error': event['message']})}\n\n"
+                    return
 
-                if event_type == "on_chain_start":
-                    node = event.get("name", "Unknown")
-                    if node in exclude_node_names:
-                        continue
-                    node_name = node
-                    yield f"data: {json.dumps({'type': 'node_start', 'node': node_name})}\n\n"
-
-                elif event_type == "on_chain_end":
-                    node = event.get('name', 'Unknown')
-                    if node in exclude_node_names:
-                        continue
-                    node_name=node
-                    yield f"data: {json.dumps({'type': 'node_end', 'node': node_name})}\n\n"
-
-                elif event_type == "on_chat_model_stream":
-                    content = event.get("data").get("chunk").content
-                    if content:
-                        yield f"data: {json.dumps({'type':'token', 'content':content})}\n\n"
-
-            final_result = await app_graph.aivoke(initial_state, config=config)
-
-            complete_data = {
-                'status': 'completed',
-                'thread_id': thread_id,
-                'report': final_result.get('synthesis').get('report') if final_result.get('synthesis') else None,
-                'citations': final_result.get('synthesis').get('citations') if final_result.get('synthesis') else None,
-                'iterations': final_result.get('iteration_count', 0)
-            }
-
-            yield f"data: {json.dumps(complete_data)}\n\n"
+            logger.info(f"[research_stream] Completed stream | thread_id={thread_id}")
+            yield f"data: {json.dumps({'type': 'completed', 'thread_id': thread_id})}\n\n"
 
         except Exception as e:
+            logger.exception(f"[research_stream] Exception in event_generator | thread_id={thread_id}")
             yield f"data: {json.dumps({'type': 'error', 'error': str(e)})}\n\n"
 
     return StreamingResponse(
         event_generator(),
         media_type="text/event-stream",
-        headers= {
+        headers={
             "Cache-Control": "no-cache",
             "Connection": "keep-alive",
-            "X-Accel-Buffering": "no" # Disable nginx buffering
+            "X-Accel-Buffering": "no"
         }
     )
 
