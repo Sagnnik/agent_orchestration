@@ -1,6 +1,7 @@
 import redis.asyncio as aioredis
 from app.utils.config import get_settings
 
+redis_client = None
 def get_redis_url() -> str:
     settings = get_settings()
     return str(settings.redis_url)

@@ -10,9 +10,10 @@ class ResearchDepth(str, Enum):
 class SearchRequest(BaseModel):
     query: str
     max_iteration: Optional[int] = Field(default=5)
-    depth: Optional[ResearchDepth] = Field(default=ResearchDepth.MODERATE)
+    depth: Optional[str] = Field(default="moderate")
     model_provider: Optional[str] = Field(default="openai")
     model_name: Optional[str] = Field(default="gpt-4o-mini")
+    api_key: Optional[str] = None
 
 class TaskStatusResponse(BaseModel):
     task_id: str

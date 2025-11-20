@@ -1,14 +1,12 @@
-import redis
-import os
 import asyncio
-from core.graph import create_graph
-from core.llm_response_models import ResearchDepth
+from app.core.graph import create_graph
+from app.core.llm_response_models import ResearchDepth
 from langgraph.checkpoint.redis import RedisSaver
 from langgraph.checkpoint.memory import MemorySaver
 from uuid import UUID
 
 def run_agent(
-    thread_id:UUID, 
+    thread_id:str, 
     query:str, 
     max_iteration:int=2, 
     depth:str=None, 
@@ -64,7 +62,8 @@ async def run_agent_streaming(
     max_iteration:int=2, 
     depth:str=None, 
     model_provider:str="openai", 
-    model_name:str="gpt-4o-mini"
+    model_name:str="gpt-4o-mini",
+    api_key: str | None = None
 ):
     """Agent with streaming support"""
     if depth is None:
@@ -84,7 +83,7 @@ async def run_agent_streaming(
         #checkpointer.setup()
 
         checkpointer = MemorySaver()
-        app = create_graph(checkpointer=checkpointer, model_name=model_name, model_provider=model_provider)
+        app = create_graph(checkpointer=checkpointer, model_name=model_name, model_provider=model_provider, api_key=api_key)
         
         config = {"configurable": {
         "thread_id": str(thread_id)

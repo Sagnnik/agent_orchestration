@@ -3,6 +3,7 @@ from bs4 import BeautifulSoup
 from typing import Dict, Any
 import re
 import markdownify
+from app.utils.logger import logger
 
 def scrape_webpage(state: Dict[str, Any]) -> Dict[str, Any]:
     """Scrape content from a webpage using BeautifulSoup"""
@@ -71,7 +72,7 @@ def scrape_webpage(state: Dict[str, Any]) -> Dict[str, Any]:
             "metadata": metadata
         }
     except Exception as e:
-        print(f"Error scraping {url}: {str(e)}")
+        logger.error(f"Error scraping {url}: {str(e)}")
         return {
             "title": "",
             "url": url,

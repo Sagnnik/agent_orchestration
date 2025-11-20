@@ -1,6 +1,6 @@
 import wikipedia
 from typing import List, Dict, Any
-from core.llm_response_models import PlannedQuery
+from app.utils.logger import logger
 
 def wikipedia_search(query: str, max_results:int=5) -> List[Dict[str, Any]]:
     """Search using Wikipedia API"""
@@ -26,10 +26,10 @@ def wikipedia_search(query: str, max_results:int=5) -> List[Dict[str, Any]]:
                     }
                 })
             except Exception as e:
-                print(f"Error fetching Wikipedia page {page_title}: {str(e)}")
+                logger.error(f"Error fetching Wikipedia page {page_title}: {str(e)}")
                 continue
         
         return results
     except Exception as e:
-        print(f"Error in Wikipedia search: {str(e)}")
+        logger.error(f"Error in Wikipedia search: {str(e)}")
         return []

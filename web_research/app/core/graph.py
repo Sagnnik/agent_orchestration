@@ -1,14 +1,15 @@
 from langgraph.graph import StateGraph, END
-from core.state_graph import ResearchState
-from core.prompts.planner_prompt import QUERY_PLANNER_PROMPT
-from core.prompts.synthesis_citation_prompt import SYNTHESIS_PROMPT
-from core.prompts.quality_check_prompt import QUALITY_CHECK_PROMPT
-from core.llm_response_models import QueryPlanOutput, SynthesisOutput, QualityCheckOutput, SearchQueryResult, QualityAction, ResearchTool
-from core.llm import get_llm
-from core.utils import get_source_type, parse_tool_results, format_search_results
-from core.tools.arxiv_search import arxiv_search
-from core.tools.wikipedia_search import wikipedia_search
-from core.tools.tavily_search import tavily_search_tool
+from app.core.state_graph import ResearchState
+from app.core.prompts.planner_prompt import QUERY_PLANNER_PROMPT
+from app.core.prompts.synthesis_citation_prompt import SYNTHESIS_PROMPT
+from app.core.prompts.quality_check_prompt import QUALITY_CHECK_PROMPT
+from app.core.llm_response_models import QueryPlanOutput, SynthesisOutput, QualityCheckOutput, SearchQueryResult, QualityAction, ResearchTool
+from app.core.llm import get_llm
+from app.core.utils import get_source_type, parse_tool_results, format_search_results
+from app.core.tools.arxiv_search import arxiv_search
+from app.core.tools.wikipedia_search import wikipedia_search
+from app.core.tools.tavily_search import tavily_search_tool
+from app.utils.logger import logger
 import asyncio
 
 TOOL_FUNCTIONS = {
@@ -26,7 +27,7 @@ class ResearchGraph:
     
     async def planner(self, state: ResearchState) -> ResearchState:
         """Plans the Research Steps given the user query and search depth"""
-        #print("\nCalling the planner agent\n")
+        
         prompt = QUERY_PLANNER_PROMPT.format(query=state['original_query'], depth=state['depth'])
         response = await self.planner_model.ainvoke([prompt])
         
@@ -34,15 +35,13 @@ class ResearchGraph:
 
     @staticmethod
     async def search_gather(state: ResearchState) -> ResearchState:
-        """Execute searches based on plan or additional queries"""
-        #print("\nCalling the search_gather agent\n")
+        """Execute searches based on plan or additional queries""" 
         
         if state.get('quality_check') and state['quality_check'].next_steps and state['quality_check'].next_steps.additional_queries:
             queries_to_execute = state["quality_check"].next_steps.additional_queries
-            #print(f"Executing {len(queries_to_execute)} additional queries from quality check")
+            
         else:
-            queries_to_execute = state['search_plan'].queries
-            #print(f"Executing {len(queries_to_execute)} queries from search plan")
+            queries_to_execute = state['search_plan'].queries    
 
         all_results = []
 
@@ -62,8 +61,7 @@ class ResearchGraph:
                 )
                 return search_results
             
-            except Exception as e:
-                #print(f"Error executing {tool_name} for query '{planned_query}'")
+            except Exception as e:   
                 return None
             
         tasks = []
@@ -84,7 +82,6 @@ class ResearchGraph:
         
         prompt = SYNTHESIS_PROMPT.format(original_query=original_query, search_results=formatted_results)
         
-        #print("\nCalling the synthesis agent \n")
         response = await self.synthesis_model.ainvoke([prompt])
         
         return {"synthesis": response}
@@ -108,7 +105,7 @@ class ResearchGraph:
             search_results=search_results
         )
 
-        #print("\nCalling the quality agent \n")
+        
         response = await self.quality_model.ainvoke([prompt])
 
         return {
@@ -134,19 +131,16 @@ class ResearchGraph:
             
             action = quality_check.action if quality_check else None
             if action == QualityAction.REVISE:
-                #print("Routing to synthesis_cite for revision")
                 return "synthesis_cite"
             elif action == QualityAction.RESEARCH_MORE:
-                #print("Routing to search_gather for more research")
                 return "search_gather"
-        
-        #print("Routing to end")
+            
         return "end"
 
 
-def create_graph(checkpointer=None, model_provider: str="openai", model_name: str='gpt-4o-mini'): 
-    model = get_llm(provider=model_provider, model_name=model_name)
-    print(f"Loaded model: {model_provider}/{model_name}")
+def create_graph(checkpointer=None, model_provider: str="openai", model_name: str='gpt-4o-mini', api_key: str | None = None): 
+    model = get_llm(provider=model_provider, model_name=model_name, api_key=api_key)
+    logger.info(f"Loaded model: {model_provider}/{model_name}")
 
     rg = ResearchGraph(model)
     
@@ -171,10 +165,10 @@ def create_graph(checkpointer=None, model_provider: str="openai", model_name: st
         }
     )
     
-    print("graph created...")
+    logger.info("graph created...")
     if checkpointer:
         compiled = graph.compile(checkpointer=checkpointer)
     else:
         compiled = graph.compile()
-    print("graph compiled...")
+    logger.info("graph compiled...")
     return compiled

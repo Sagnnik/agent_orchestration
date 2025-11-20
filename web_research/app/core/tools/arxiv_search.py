@@ -1,5 +1,6 @@
 import arxiv
 from typing import List, Dict, Any
+from app.utils.logger import logger
 
 def arxiv_search(query: str, max_results:int=5) -> List[Dict[str, Any]]:
     """Search using ArXiv API"""
@@ -30,5 +31,5 @@ def arxiv_search(query: str, max_results:int=5) -> List[Dict[str, Any]]:
         
         return results
     except Exception as e:
-        print(f"Error in ArXiv search: {str(e)}")
+        logger.error(f"Error in ArXiv search: {str(e)}")
         return []

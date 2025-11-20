@@ -1,4 +1,4 @@
-from core.llm_response_models import ResearchTool, SourceType, SearchQueryResult
+from app.core.llm_response_models import ResearchTool, SourceType, SearchQueryResult
 from typing import Any, List
 
 def get_source_type(tool_name: ResearchTool) -> SourceType:

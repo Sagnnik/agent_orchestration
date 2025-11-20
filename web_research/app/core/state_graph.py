@@ -1,5 +1,5 @@
 #state_graph.py
-from core.llm_response_models import QueryPlanOutput, SearchQueryResult, SynthesisOutput, QualityCheckOutput, ResearchDepth
+from app.core.llm_response_models import QueryPlanOutput, SearchQueryResult, SynthesisOutput, QualityCheckOutput, ResearchDepth
 from typing import Annotated, TypedDict, Optional, List
 import operator
 

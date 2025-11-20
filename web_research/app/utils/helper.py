@@ -2,7 +2,7 @@ from app.models.models import ResearchDepth
 from datetime import datetime, timezone
 from langgraph.checkpoint.memory import MemorySaver
 from app.core.graph import create_graph
-from app.services.cache import store_task_status, get_task_status
+from app.services.cache import store_task_status
 
 def get_research_depth(depth:str) ->ResearchDepth:
     if depth is None:
