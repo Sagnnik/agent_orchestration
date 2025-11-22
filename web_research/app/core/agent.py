@@ -1,6 +1,7 @@
 import asyncio
 from app.core.graph import create_graph
 from app.core.llm_response_models import ResearchDepth
+from app.services.checkpointer import get_or_create_graph
 from langgraph.checkpoint.redis import RedisSaver
 from langgraph.checkpoint.memory import MemorySaver
 from uuid import UUID
@@ -24,12 +25,8 @@ def run_agent(
         }
         research_depth = depth_mapping.get(depth.lower())
 
-    #REDIS_URL = os.getenv("REDIS_URL")
-
     try:
-        #checkpointer = RedisSaver.from_conn_string(REDIS_URL)
-        #checkpointer.setup()
-        
+
         checkpointer = MemorySaver()
         app = create_graph(checkpointer=checkpointer, model_name=model_name, model_provider=model_provider)
         
@@ -51,9 +48,7 @@ def run_agent(
         return result
     except Exception as e:
         raise Exception(f"Error running research graph: {str(e)}")
-    # finally:
-    #     if 'checkpointer' in locals():
-    #         checkpointer.conn.close()
+
 
 
 async def run_agent_streaming(
@@ -76,17 +71,18 @@ async def run_agent_streaming(
         }
         research_depth = depth_mapping.get(depth.lower())
 
-    #REDIS_URL = os.getenv("REDIS_URL")
-
     try:
-        #checkpointer = RedisSaver.from_conn_string(REDIS_URL)
-        #checkpointer.setup()
 
-        checkpointer = MemorySaver()
-        app = create_graph(checkpointer=checkpointer, model_name=model_name, model_provider=model_provider, api_key=api_key)
+        # checkpointer = MemorySaver()
+        # app = create_graph(checkpointer=checkpointer, model_name=model_name, model_provider=model_provider, api_key=api_key)
+        app = await get_or_create_graph(
+            model_provider=model_provider,
+            model_name=model_name,
+            api_key=api_key
+        )
         
         config = {"configurable": {
-        "thread_id": str(thread_id)
+            "thread_id": str(thread_id)
         }}
         initial_state = {
             "original_query": query,
@@ -116,10 +112,6 @@ async def run_agent_streaming(
     
     except Exception as e:
         yield {"type": "error", "message": str(e)}
-    # finally:
-    #     if 'checkpointer' in locals():
-    #         checkpointer.conn.close()
-
 
            
 

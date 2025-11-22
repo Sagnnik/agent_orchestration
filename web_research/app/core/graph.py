@@ -1,4 +1,5 @@
 from langgraph.graph import StateGraph, END
+from typing import Optional
 from app.core.state_graph import ResearchState
 from app.core.prompts.planner_prompt import QUERY_PLANNER_PROMPT
 from app.core.prompts.synthesis_citation_prompt import SYNTHESIS_PROMPT
@@ -138,7 +139,12 @@ class ResearchGraph:
         return "end"
 
 
-def create_graph(checkpointer=None, model_provider: str="openai", model_name: str='gpt-4o-mini', api_key: str | None = None): 
+def create_graph(
+    checkpointer=None,
+    model_provider: str = "openai",
+    model_name: str = 'gpt-4o-mini',
+    api_key: Optional[str] = None
+):
     model = get_llm(provider=model_provider, model_name=model_name, api_key=api_key)
     logger.info(f"Loaded model: {model_provider}/{model_name}")
 
@@ -156,19 +162,19 @@ def create_graph(checkpointer=None, model_provider: str="openai", model_name: st
     graph.add_edge("search_gather", "synthesis_cite")
     graph.add_edge("synthesis_cite", "quality_checker")
     graph.add_conditional_edges(
-        "quality_checker", 
-        ResearchGraph.quality_router, 
+        "quality_checker",
+        ResearchGraph.quality_router,
         {
             "synthesis_cite": "synthesis_cite",
-            "search_gather": "search_gather", 
+            "search_gather": "search_gather",
             "end": END
         }
     )
     
-    logger.info("graph created...")
+    logger.info("[Graph] Created")
     if checkpointer:
         compiled = graph.compile(checkpointer=checkpointer)
     else:
         compiled = graph.compile()
-    logger.info("graph compiled...")
+    logger.info("[Graph] Compiled")
     return compiled

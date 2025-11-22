@@ -6,13 +6,16 @@ from app.api import routes
 from app.utils.config import get_settings, Settings
 from app.utils.logger import logger
 from app.services.redis_client import get_redis_client, init_redis, close_redis
+from app.services.checkpointer import close_redis_checkpointer, get_redis_checkpointer
 from contextlib import asynccontextmanager
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_redis()
+    await get_redis_checkpointer() 
     yield
     await close_redis()
+    await close_redis_checkpointer()
 
 app = FastAPI(lifespan=lifespan)
 

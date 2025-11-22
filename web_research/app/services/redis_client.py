@@ -10,7 +10,7 @@ async def init_redis() -> None:
     global redis_client
     if redis_client is not None:
         return
-    redis_client = await aioredis.from_url(get_redis_url(), decode_responses=True)
+    redis_client = await aioredis.from_url(get_redis_url(), decode_responses=False)
     await redis_client.ping()
 
 async def close_redis() -> None:
