@@ -1,7 +1,11 @@
-from typing import AsyncGenerator, Generator
+from typing import AsyncGenerator, Generator, Optional
 import requests
 import json
 import httpx
+from io import BytesIO
+from reportlab.lib.pagesizes import A4
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+from reportlab.lib.styles import getSampleStyleSheet
 
 API_BASE_URL = "http://localhost:8000/api/v1"
 
@@ -235,5 +239,58 @@ def format_final_report(raw: str) -> str:
     return "\n\n".join(parts)
 
 
+def markdown_to_pdf_bytes(md_text: str, title: Optional[str] = None) -> bytes:
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        rightMargin=40,
+        leftMargin=40,
+        topMargin=60,
+        bottomMargin=40,
+    )
 
+    styles = getSampleStyleSheet()
+    story = []
+
+    # Optional title at the top
+    if title:
+        story.append(Paragraph(title, styles["Title"]))
+        story.append(Spacer(1, 18))
+
+    lines = md_text.split("\n")
+    for raw_line in lines:
+        line = raw_line.rstrip()
+
+        # Blank line = vertical space
+        if not line.strip():
+            story.append(Spacer(1, 10))
+            continue
+
+        # Very naive heading detection: lines starting with '#'
+        if line.startswith("#"):
+            # Count number of #'s to determine level
+            level = len(line) - len(line.lstrip("#"))
+            text = line.lstrip("#").strip()
+
+            if level == 1:
+                style = styles["Heading1"]
+            elif level == 2:
+                style = styles["Heading2"]
+            else:
+                style = styles["Heading3"]
+        else:
+            text = line
+            style = styles["BodyText"]
+
+        # Strip some basic markdown emphasis markers so they don't show as raw symbols
+        text = text.replace("**", "").replace("__", "")
+
+        story.append(Paragraph(text, style))
+        story.append(Spacer(1, 6))
+
+    doc.build(story)
+    pdf_bytes = buffer.getvalue()
+    buffer.close()
+    return pdf_bytes
 

@@ -2,6 +2,7 @@ import asyncio
 from app.core.graph import create_graph
 from app.core.llm_response_models import ResearchDepth
 from app.services.checkpointer import get_or_create_graph
+from app.utils.logger import logger
 from langgraph.checkpoint.redis import RedisSaver
 from langgraph.checkpoint.memory import MemorySaver
 from uuid import UUID
@@ -72,9 +73,6 @@ async def run_agent_streaming(
         research_depth = depth_mapping.get(depth.lower())
 
     try:
-
-        # checkpointer = MemorySaver()
-        # app = create_graph(checkpointer=checkpointer, model_name=model_name, model_provider=model_provider, api_key=api_key)
         app = await get_or_create_graph(
             model_provider=model_provider,
             model_name=model_name,
@@ -109,9 +107,10 @@ async def run_agent_streaming(
                 content = event['data']['chunk'].content
                 if content:
                     yield {"type": "token", "content": content}
+
+    except asyncio.CancelledError:
+        logger.info(f"[run_agent_streaming] Cancelled | thread_id = {thread_id}")
+        raise
     
     except Exception as e:
         yield {"type": "error", "message": str(e)}
-
-           
-

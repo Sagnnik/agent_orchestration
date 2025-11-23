@@ -1,7 +1,8 @@
 import streamlit as st
-from utils.helper import stream_research, format_final_report
-
+from utils.helper import stream_research, format_final_report, markdown_to_pdf_bytes
+import requests
 from datetime import datetime, timezone
+API_BASE_URL = "http://localhost:8000/api/v1"
 
 # Page config
 st.set_page_config(
@@ -38,16 +39,14 @@ if 'current_thread_id' not in st.session_state:
 if 'is_researching' not in st.session_state:
     st.session_state.is_researching = False
 
-def render_node_badge(node_name: str, status: str = "start"):
-    """Render a node badge with appropriate styling"""
-    node_display_map = {
+node_display_map = {
         "planner": "📋 Planning",
         "search_gather": "🔍 Searching",
         "synthesis_cite": "✍️ Writing",
         "quality_checker": "✅ Quality Check"
     }
-    
-    status_emoji = "🔄" if status == "start" else "✓"
+def render_node_badge(node_name: str, status: str = "start"):
+    status_emoji = "⚙️" if status == "start" else "✓"
     display_name = node_display_map.get(node_name, node_name)
     
     return f'<span class="node-badge">{status_emoji} {display_name}</span>'
@@ -58,6 +57,26 @@ st.markdown("AI-powered research assistant that gathers, synthesizes, and cites 
 
 
 with st.sidebar:
+
+    st.header("🔌 API Health check")
+    
+    if st.button("Check", key='health_check'):
+        try:
+            response = requests.get(url='http://localhost:8000/health', timeout=5)
+            if response.status_code == 200:
+                body = response.json()
+                if body.get('status') == 'healthy':
+                    st.success("✅ Connected")
+
+                else:
+                    st.warning("⚠️ Not connected")
+            else:
+                st.error(f"❌ Connection Failed: {response.status_code}")
+        except Exception as e:
+            st.error(f"Connection failed: {str(e)}")
+
+    st.divider()
+
     st.header("⚙️ Configuration")
     
     st.subheader("Model Settings")
@@ -90,14 +109,14 @@ with st.sidebar:
     depth = st.select_slider(
         "Research Depth",
         options=["shallow", "moderate", "deep"],
-        value="moderate"
+        value="shallow"
     )
     
     max_iteration = st.slider(
         "Max Iterations",
         min_value=1,
         max_value=5,
-        value=2,
+        value=1,
         help="Maximum number of research iterations"
     )
     
@@ -110,6 +129,45 @@ with st.sidebar:
         st.session_state.chat_history = []
         st.session_state.current_thread_id = None
         st.rerun()
+
+if st.session_state.chat_history:
+    st.divider()
+    st.subheader("📖 Research History")
+    
+    for idx, item in enumerate(reversed(st.session_state.chat_history)):
+        with st.expander(f"{item['query'][:80]}...", expanded=(idx == 0)):
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.caption(f"**Model:** {item['config']['model']}")
+            with col2:
+                st.caption(f"**Depth:** {item['config']['depth']}")
+            with col3:
+                st.caption(f"**Thread:** {item['thread_id'][:8]}...")
+
+            st.markdown("---")
+            st.markdown(item['report'])
+
+            base_name = f"research_{item['thread_id'][:8]}"
+
+            st.download_button(
+                "📄 Download Report (.md)",
+                data=item['report'],
+                file_name=f"{base_name}.md",
+                mime="text/markdown",
+                key=f"download_md_{idx}"
+            )
+
+            pdf_bytes = markdown_to_pdf_bytes(
+                item['report'],
+                title=item['query'][:80]
+            )
+            st.download_button(
+                "📄 Download Report (.pdf)",
+                data=pdf_bytes,
+                file_name=f"{base_name}.pdf",
+                mime="application/pdf",
+                key=f"download_pdf_{idx}"
+            )
 
 col1, col2 = st.columns([2, 1])
 
@@ -143,11 +201,12 @@ with col2:
     3. 📜 Arxiv
     """)
 
+# Handle START button
 if search_button and query:
     st.session_state.is_researching = True
 
     status_container = st.container()
-    progress_container = st.container()
+    progress_container = st.chat_message("assistant")
 
     with status_container:
         st.subheader("🔄 Research Progress")
@@ -155,7 +214,7 @@ if search_button and query:
         progress_bar = st.progress(0)
 
     with progress_container:
-        st.subheader("💾 Raw Stream (concatenated JSON)")
+        st.subheader("💾 Raw Stream")
         token_output = st.empty()
         st.subheader("📄 Final Report")
         final_output = st.empty()
@@ -178,13 +237,15 @@ if search_button and query:
 
             if event_type == 'started':
                 thread_id = event.get('thread_id')
-                st.session_state.thread_id = thread_id
+                st.session_state.current_thread_id = thread_id
 
                 with status_container:
                     st.success(f"✅ Research started (ID: {thread_id[:6]}...)")
 
             elif event_type == 'node_start':
                 node = event.get('node')
+                if node not in node_display_map:
+                    continue
                 current_nodes.append(node)
                 with status_container:
                     badges_html = " ".join(
@@ -194,6 +255,8 @@ if search_button and query:
 
             elif event_type == 'node_end':
                 node = event.get('node')
+                if node not in node_display_map:
+                    continue
                 if node in current_nodes:
                     idx = current_nodes.index(node)
                     current_nodes[idx] = f"{node}_done"
@@ -222,7 +285,7 @@ if search_button and query:
                     progress_bar.progress(100)
 
                 with progress_container:
-                    # hide raw JSON after completion:
+                    # hide raw JSON after completion
                     token_output.empty()
                     final_output.markdown(formatted_report)
             elif event_type == 'error':
@@ -250,29 +313,3 @@ if search_button and query:
     except Exception as e:
         st.error(f"❌ An Error has occured: {str(e)}")
         st.session_state.is_researching = False
-
-
-if st.session_state.chat_history:
-    st.divider()
-    st.subheader("📖 Research History")
-    
-    for idx, item in enumerate(reversed(st.session_state.chat_history)):
-        with st.expander(f"{item['query'][:80]}...", expanded=(idx == 0)):
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                st.caption(f"**Model:** {item['config']['model']}")
-            with col2:
-                st.caption(f"**Depth:** {item['config']['depth']}")
-            with col3:
-                st.caption(f"**Thread:** {item['thread_id'][:8]}...")
-
-            st.markdown("---")
-            st.markdown(item['report'])
-
-            st.download_button(
-                "👇 Download Report",
-                data=item['report'],
-                file_name=f"research_{item['thread_id'][:8]}.md",
-                mime="text/markdown",
-                key=f"download_{idx}"
-            )

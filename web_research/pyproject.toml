@@ -25,6 +25,7 @@ dependencies = [
     "markdownify>=1.2.0",
     "pydantic-settings>=2.11.0",
     "redis>=5.2.1,<7.0.0",
+    "reportlab>=4.4.5",
     "streamlit>=1.51.0",
     "wikipedia>=1.4.0",
 ]

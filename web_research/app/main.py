@@ -15,7 +15,6 @@ async def lifespan(app: FastAPI):
     await get_redis_checkpointer() 
     yield
     await close_redis()
-    await close_redis_checkpointer()
 
 app = FastAPI(lifespan=lifespan)
 

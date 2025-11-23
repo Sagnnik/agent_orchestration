@@ -1,7 +1,6 @@
 import asyncio
 from app.utils.logger import logger
 from typing import Optional
-from langgraph.checkpoint.redis import RedisSaver
 from langgraph.checkpoint.redis.aio import AsyncRedisSaver
 from app.services.redis_client import get_redis_client
 from app.core.graph import create_graph

@@ -8,8 +8,11 @@ from app.models.models import SearchRequest, TaskStatusResponse
 from app.core.agent import run_agent_streaming
 from app.utils.logger import logger
 from uuid import uuid4
+import asyncio
+from typing import Dict
 import json
 
+running_research_task: Dict[str, asyncio.Task] = {}
 router = APIRouter()
 
 @router.post("/research")
@@ -139,6 +142,8 @@ async def research_stream(request: SearchRequest):
     )
     
     async def event_generator():
+        current_task = asyncio.current_task()
+        running_research_task[thread_id] = current_task
         try:
             yield f"data: {json.dumps({'type': 'started', 'thread_id': str(thread_id), 'query': request.query})}\n\n"
 
@@ -169,9 +174,20 @@ async def research_stream(request: SearchRequest):
             logger.info(f"[research_stream] Completed stream | thread_id={thread_id}")
             yield f"data: {json.dumps({'type': 'completed', 'thread_id': thread_id})}\n\n"
 
+        except asyncio.CancelledError:
+            logger.info(f"[research_stream] Stream cancelled | thread_id = {thread_id}")
+            try:
+                yield f"data: {json.dumps({'type': 'cancelled', 'thread_id': thread_id})}\n\n"
+            except Exception:
+                pass
+            raise
+
         except Exception as e:
             logger.exception(f"[research_stream] Exception in event_generator | thread_id={thread_id}")
             yield f"data: {json.dumps({'type': 'error', 'error': str(e)})}\n\n"
+
+        finally:
+            running_research_task.pop(thread_id, None)
 
     return StreamingResponse(
         event_generator(),
@@ -183,5 +199,19 @@ async def research_stream(request: SearchRequest):
         }
     )
 
+@router.post("/research/cancel/{thread_id}")
+async def cancel_research(thread_id: str):
+    task = running_research_task.get(thread_id)
+    if not task:
+        return JSONResponse(
+            status_code=404,
+            content={"status": "not_found", "thread_id": thread_id},
+        )
+    if task.done():
+        return {"status": "already_finished", "thread_id": thread_id}
+    
+    task.cancel()
+    logger.info(f"[cancel research] Request Cancellation | thread_id={thread_id}")
+    return {"status": "cancelled_requested", "thread_id": thread_id}
 
 
