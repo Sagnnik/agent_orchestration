@@ -2,6 +2,7 @@ from app.services.redis_client import get_redis_client
 from datetime import datetime, timezone
 from typing import Optional
 import json
+import hashlib
 
 
 async def store_task_status(task_id:str, status:str, data:Optional[dict] = None):

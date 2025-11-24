@@ -19,6 +19,8 @@ class Settings(BaseSettings):
     langsmith_project: str = "web_researcher"
     langsmith_api_key: str | None = None
 
+    api_base_url: str | None = None
+
     class Config:
         env_file = ".env"
 

@@ -2,12 +2,15 @@ from typing import AsyncGenerator, Generator, Optional
 import requests
 import json
 import httpx
+import os
+from dotenv import load_dotenv
 from io import BytesIO
 from reportlab.lib.pagesizes import A4
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet
 
-API_BASE_URL = "http://localhost:8000/api/v1"
+load_dotenv()
+API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8000/api/v1")
 
 async def async_stream_research(query: str, max_iteration: int, depth: str, model_provider: str, model_name: str, api_key: str | None = None) -> AsyncGenerator:
     url = f"{API_BASE_URL}/research/stream"

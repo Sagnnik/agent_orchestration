@@ -1,8 +1,8 @@
 import streamlit as st
-from utils.helper import stream_research, format_final_report, markdown_to_pdf_bytes
+from utils.helper import stream_research, format_final_report, markdown_to_pdf_bytes, API_BASE_URL
 import requests
 from datetime import datetime, timezone
-API_BASE_URL = "http://localhost:8000/api/v1"
+import os
 
 # Page config
 st.set_page_config(
@@ -46,7 +46,7 @@ node_display_map = {
         "quality_checker": "✅ Quality Check"
     }
 def render_node_badge(node_name: str, status: str = "start"):
-    status_emoji = "⚙️" if status == "start" else "✓"
+    status_emoji = "⚙️" if status == "start" else "✅"
     display_name = node_display_map.get(node_name, node_name)
     
     return f'<span class="node-badge">{status_emoji} {display_name}</span>'
@@ -55,14 +55,14 @@ def render_node_badge(node_name: str, status: str = "start"):
 st.markdown('<h1 class="main-header">🔍 Web Researcher</h1>', unsafe_allow_html=True)
 st.markdown("AI-powered research assistant that gathers, synthesizes, and cites information from multiple sources.")
 
-
 with st.sidebar:
 
     st.header("🔌 API Health check")
     
     if st.button("Check", key='health_check'):
         try:
-            response = requests.get(url='http://localhost:8000/health', timeout=5)
+            health_url = API_BASE_URL.replace('/api/v1', '/health')
+            response = requests.get(url=health_url, timeout=5)
             if response.status_code == 200:
                 body = response.json()
                 if body.get('status') == 'healthy':
